@@ -19,6 +19,9 @@ function _init()
 	max_fit_val=0
 	generation=0
 	
+	-- initialize persistent cart data
+	cartdata("pico_nn_model")
+	
 	-- initializing game and particles
 	init_game()
 	init_particles()
@@ -65,10 +68,12 @@ function init_game(net)
 		-- creating networks
 		if net==nil then
 			-- if we didnt pass a network
-			-- we create one from scratch
 			local n=nn:new({3,5,3})
-			n:init_neurons()
-			n:init_weights()
+			if not(n:load()) then -- try to load one from cart data
+			    -- else we create one from scratch
+			    n:init_neurons()
+			    n:init_weights()
+			end
 			add(networks,n)
 		else
 			-- if we passed a network
@@ -222,7 +227,7 @@ function update_menu()
 		if btnp(⬇️) then
 			menu_opt+=1
 		end
-		menu_opt=mid(1,menu_opt,3)
+		menu_opt=mid(1,menu_opt,4)
 	
 		if btnp(❎) then
 			if menu_opt==1 then
@@ -230,6 +235,8 @@ function update_menu()
 			elseif menu_opt==2 then
 				show_info=not(show_info)
 			elseif menu_opt==3 then
+				networks[robot_focused]:save()
+			elseif menu_opt==4 then
 				show_menu=false
 			end
 		end
@@ -248,8 +255,8 @@ function draw_menu()
 	print("kill❎",104,1,7)
 		
 	if show_menu then
-		rectfill(80,14,128,42,0)
-		rect(80,14,128,42,8)
+		rectfill(80,14,128,50,0)
+		rect(80,14,128,50,8)
 		print(">",84,18+(menu_opt-1)*8,8)
 		if show_nn then
 			print("hide nn",90,18,7)
@@ -259,9 +266,10 @@ function draw_menu()
 		if show_info then
 			print("hide info",90,26,7)
 		else
-		 print("show info",90,26,7)
+		    print("show info",90,26,7)
 		end
-		print("exit menu",90,34,7)
+		print("save nn",90,34,7)
+		print("exit menu",90,42,7)
 	end
 end
 
@@ -863,6 +871,62 @@ function nn:draw(_x,_y,_w,_h)
 		end
 	end
 end
+
+-- save nn model to cart data
+function nn:save()
+    local data = {}
+	-- convert neuron values
+	for i=1,#self.layers do -- each layer
+		for j=1,#self.neurons[i] do -- each neuron in layer
+            add(data, self.neurons[i][j])
+		end
+	end
+	-- convert weight values
+	for i=2,#self.layers do -- each layer (offset)
+		for j=1,#self.neurons[i] do -- each neuron in layer
+			for k=1,#self.neurons[i-1] do -- each weight in previous layer
+                add(data, self.weights[i-1][j][k])
+			end
+		end
+	end
+	local n = mid(0, #data, 65)
+	if (n == 65) then
+		return false -- too large to fit into cartdata persistent storage
+	elseif (n == 0) then
+		return false -- no data
+	else
+		for i=1,#data do
+			dset(i-1, data[i])
+		end
+		return true
+	end
+end
+
+-- load nn model from cart data
+function nn:load()
+	-- load cart data
+    local savedata = {}
+	for i=1,64 do
+		savedata[i] = dget(i-1)
+	end
+	if (savedata[i] == nil) then
+		return false
+	end
+	-- replace model params
+	local layers = {}
+	for i=1,#self.layers do -- meta data: neuron count per layer
+		add(layers, #self.neurons[i])
+	end
+	local n=self:new(layers)
+	n:init_neurons()
+	n:init_weights()
+
+	self.neurons=n.neurons
+	self.weights=n.weights
+	self.fitness=0
+	return true
+end
+
 -->8
 -- +---------------+
 -- | usage example |
