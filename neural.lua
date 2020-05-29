@@ -380,6 +380,61 @@ function nn:draw(_x,_y,_w,_h)
     end
 end
 
+-- save nn model to cart data
+function nn:save()
+    local data = {}
+	-- convert neuron values
+	for i=1,#self.layers do -- each layer
+		for j=1,#self.neurons[i] do -- each neuron in layer
+            add(data, self.neurons[i][j])
+		end
+	end
+	-- convert weight values
+	for i=2,#self.layers do -- each layer (offset)
+		for j=1,#self.neurons[i] do -- each neuron in layer
+			for k=1,#self.neurons[i-1] do -- each weight in previous layer
+                add(data, self.weights[i-1][j][k])
+			end
+		end
+	end
+	local n = mid(0, #data, 65)
+	if (n == 65) then
+		return false -- too large to fit into cartdata persistent storage
+	elseif (n == 0) then
+		return false -- no data
+	else
+		for i=1,#data do
+			dset(i-1, data[i])
+		end
+		return true
+	end
+end
+
+-- load nn model from cart data
+function nn:load()
+	-- load cart data
+    local savedata = {}
+	for i=1,64 do
+		savedata[i] = dget(i-1)
+	end
+	if (savedata[i] == nil) then
+		return false
+	end
+	-- replace model params
+	local layers = {}
+	for i=1,#self.layers do -- meta data: neuron count per layer
+		add(layers, #self.neurons[i])
+	end
+	local n=self:new(layers)
+	n:init_neurons()
+	n:init_weights()
+
+	self.neurons=n.neurons
+	self.weights=n.weights
+	self.fitness=0
+	return true
+end
+
 --------------------------------------------------------
 
 -- +------+
